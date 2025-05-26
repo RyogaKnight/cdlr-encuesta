@@ -31,4 +31,4 @@ def formulario():
     return "<h2>Formulario de encuesta (aqui ira el HTML real)</h2>"
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(host="0.0.0.0", port=10000, debug=True)
