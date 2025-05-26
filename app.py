@@ -1,34 +1,73 @@
-from flask import Flask, render_template, request, redirect, url_for
+from flask import Flask, render_template_string, request
 
 app = Flask(__name__)
 
-# Configuracion basica
-@app.route("/")
-def home():
-    return "<h1>Bienvenido a la encuesta de Clima Laboral - CDLR</h1>"
+PREGUNTAS = {
+    "Planeación": [
+        "Conozco claramente los objetivos estratégicos de la empresa.",
+        "Sé cómo mi trabajo contribuye a los resultados de la organización.",
+        "Recibo información oportuna sobre los cambios en la planeación.",
+        "Participo en la toma de decisiones relacionadas con mi área."
+    ],
+    "Liderazgo": [
+        "Mi líder reconoce mi trabajo de forma justa.",
+        "Mi líder está disponible para orientarme.",
+        "Recibo retroalimentación constructiva.",
+        "Siento que se confía en mis capacidades."
+    ],
+    "Comunicación": [
+        "La comunicación entre áreas es efectiva.",
+        "Tengo canales claros para expresar sugerencias.",
+        "Recibo la información necesaria para hacer mi trabajo.",
+        "La información en la empresa es transparente."
+    ],
+    "Motivación": [
+        "Me siento motivado a dar lo mejor de mí en el trabajo.",
+        "Tengo oportunidades de crecimiento.",
+        "Mis esfuerzos son valorados.",
+        "Me entusiasma trabajar en esta empresa."
+    ],
+    "Reconocimiento": [
+        "Se reconocen públicamente los logros.",
+        "Existen incentivos por buen desempeño.",
+        "Las promociones son justas y basadas en mérito.",
+        "Siento que mi trabajo hace una diferencia."
+    ]
+}
 
-# Ruta protegida por contraseña generica (simple, para MVP)
-@app.route("/encuesta", methods=["GET", "POST"])
+ESCALA = ["Nunca", "En ocasiones", "Con frecuencia", "Casi siempre", "Siempre"]
+
+@app.route("/", methods=["GET", "POST"])
 def encuesta():
-    password = "CDLR2025"
     if request.method == "POST":
-        ingreso = request.form.get("clave")
-        if ingreso == password:
-            return redirect(url_for("formulario"))
-        else:
-            return "<h3>Contraseña incorrecta</h3><a href='/encuesta'>Volver</a>"
-    return '''
-        <form method="POST">
-            <label>Ingresa la clave para acceder a la encuesta:</label><br>
-            <input type="password" name="clave">
-            <input type="submit" value="Entrar">
-        </form>
-    '''
+        respuestas = request.form.to_dict()
+        return render_template_string("""
+        <h2>Gracias por completar la encuesta</h2>
+        <p>Tu retroalimentación es muy valiosa.</p>
+        <a href='/'>Volver</a>
+        """)
 
-# Formulario simulado (por ahora)
-@app.route("/formulario")
-def formulario():
-    return "<h2>Formulario de encuesta (aqui ira el HTML real)</h2>"
+    return render_template_string("""
+    <html><head><title>Encuesta de Clima Laboral</title></head>
+    <body style='font-family: sans-serif; max-width: 800px; margin: auto;'>
+        <h1>Encuesta de Clima Laboral</h1>
+        <form method='POST'>
+            {% for area, preguntas in preguntas.items() %}
+                <h2>{{ area }}</h2>
+                {% for pregunta in preguntas %}
+                    <p><strong>{{ pregunta }}</strong></p>
+                    {% for opcion in escala %}
+                        <label>
+                            <input type='radio' name='{{ area }}_{{ loop.index }}' value='{{ opcion }}' required>
+                            {{ opcion }}
+                        </label><br>
+                    {% endfor %}
+                {% endfor %}
+            {% endfor %}
+            <br><input type='submit' value='Enviar'>
+        </form>
+    </body></html>
+    """, preguntas=PREGUNTAS, escala=ESCALA)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000, debug=True)
