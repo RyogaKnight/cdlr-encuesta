@@ -1,0 +1,19 @@
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Gracias</title>
+  <style>
+    body { font-family: Arial, sans-serif; background-color: {{ color_fondo }}; text-align: center; padding: 50px; }
+    .logos { margin-top: 30px; display: flex; justify-content: center; gap: 40px; }
+    .logos img { height: 90px; }
+  </style>
+</head>
+<body>
+  <h2>¡Gracias por completar la encuesta!</h2>
+  <p>Tu opinión es muy valiosa para mejorar el clima laboral.</p>
+  <div class="logos">
+    <img src="{{ cliente_logo }}" alt="Logo Cliente">
+    <img src="{{ cdlr_logo }}" alt="Logo CDLR">
+  </div>
+</body>
+</html>

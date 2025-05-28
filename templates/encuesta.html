@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Encuesta</title>
+  <style>
+    body { font-family: Arial, sans-serif; background-color: {{ color_fondo }}; padding: 20px; }
+    .contenedor {
+      background-color: white;
+      border-radius: 10px;
+      padding: 30px 40px;
+      max-width: 800px;
+      margin: 40px auto;
+      box-shadow: 0 0 15px rgba(0,0,0,0.1);
+    }
+    h1, h2 { text-align: center; }
+    .logos { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .logos img { height: 90px; }
+    form p {
+      margin-top: 20px;
+      font-weight: bold;
+      text-align: left;
+    }
+    form label {
+      margin-left: 20px;
+      display: block;
+      text-align: left;
+    }
+    .botones { text-align: center; margin-top: 20px; }
+    .botones input { padding: 8px 20px; margin: 5px; }
+    .error { color: red; text-align: center; }
+  </style>
+</head>
+<body>
+  <div class="contenedor">
+    <div class="logos">
+      <img src="{{ cliente_logo }}" alt="Logo Cliente">
+      <img src="{{ cdlr_logo }}" alt="Logo CDLR">
+    </div>
+     <p>Ruta logo: {{ cliente_logo }}</p>
+    <h1>Encuesta de Clima Laboral</h1>
+    <h2>Parte {{ pagina + 1 }} de {{ total }}: {{ area }}</h2>
+    <form method="POST">
+      {% for pregunta in preguntas %}
+        {% set i = loop.index0 %}
+        {% set clave = area ~ '_' ~ i %}
+        {% set respuesta_guardada = session.respuestas[clave][2] if clave in session.respuestas else '' %}
+        <p><strong>{{ pregunta }}</strong></p>
+        {% for opcion in escala %}
+          <label>
+            <input type="radio" name="{{ clave }}" value="{{ opcion }}"
+            {% if respuesta_guardada == opcion %}checked{% endif %} required>
+            {{ opcion }}
+          </label>
+        {% endfor %}
+      {% endfor %}
+      <div class="botones">
+        {% if pagina > 0 %}
+          <input type="submit" name="anterior" value="Anterior">
+        {% endif %}
+        <input type="submit" name="siguiente" value="Siguiente">
+      </div>
+      {% if error %}<p class="error">{{ error }}</p>{% endif %}
+    </form>
+  </div>
+</body>
+</html>
