@@ -3,63 +3,111 @@
 <head>
   <meta charset="UTF-8">
   <title>Encuesta</title>
-  <style>
-    body { font-family: Arial, sans-serif; background-color: {{ color_fondo }}; padding: 20px; }
-    .contenedor {
-      background-color: white;
-      border-radius: 10px;
-      padding: 30px 40px;
-      max-width: 800px;
-      margin: 40px auto;
-      box-shadow: 0 0 15px rgba(0,0,0,0.1);
-    }
-    h1, h2 { text-align: center; }
-    .logos { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-    .logos img { height: 90px; }
-    form p {
-      margin-top: 20px;
-      font-weight: bold;
-      text-align: left;
-    }
-    form label {
-      margin-left: 20px;
-      display: block;
-      text-align: left;
-    }
-    .botones { text-align: center; margin-top: 20px; }
-    .botones input { padding: 8px 20px; margin: 5px; }
-    .error { color: red; text-align: center; }
- 
-
-@media (max-width: 600px) {
+  
+<style>
   body {
-    padding: 10px;
-  }
-  .contenedor {
+    font-family: Arial, sans-serif;
+    background-color: {{ color_fondo }};
     padding: 20px;
-    margin: 10px;
   }
+
+  .contenedor {
+    background-color: white;
+    border-radius: 10px;
+    padding: 30px 40px;
+    max-width: 800px;
+    margin: 40px auto;
+    box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+  }
+
   h1, h2 {
-    font-size: 1.2em;
+    text-align: center;
   }
+
+  .logos {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+
+  .logos img {
+    height: 90px;
+  }
+
   form p {
-    font-size: 1em;
+    margin-top: 20px;
+    font-weight: bold;
+    text-align: left;
+    font-size: 1.1em;
   }
-  label {
-    font-size: 0.95em;
-    padding: 6px 0;
+
+  form label {
+    margin-left: 20px;
+    display: flex;
+    align-items: center;
+    font-size: 1.1em;
+    margin-bottom: 5px;
   }
+
   input[type="radio"] {
-    width: 20px;
-    height: 20px;
+    transform: scale(1.3);
     margin-right: 10px;
   }
-  .botones input {
-    font-size: 1em;
-    padding: 10px 20px;
+
+  .botones {
+    text-align: center;
+    margin-top: 20px;
   }
-}
+
+  .botones input {
+    padding: 10px 20px;
+    font-size: 1em;
+  }
+
+  .error {
+    color: red;
+    text-align: center;
+  }
+
+  @media (max-width: 600px) {
+    body {
+      padding: 10px;
+    }
+
+    .contenedor {
+      padding: 20px;
+      margin: 10px;
+    }
+
+    h1 {
+      font-size: 1.4em;
+    }
+
+    h2 {
+      font-size: 1.2em;
+    }
+
+    form p {
+      font-size: 1.1em;
+    }
+
+    form label {
+      font-size: 1.1em;
+    }
+
+    input[type="radio"] {
+      transform: scale(1.6);
+      margin-right: 12px;
+    }
+
+    .botones input {
+      font-size: 1em;
+      padding: 12px 24px;
+    }
+  }
 </style>
+
 </head>
 <body>
   <div class="contenedor">
