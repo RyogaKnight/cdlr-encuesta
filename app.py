@@ -13,9 +13,14 @@ app.secret_key = 'clave-super-secreta'  # Necesaria para usar sesiones
 # ============================
 # Sección: Google Sheets - Autenticación y lectura
 # ============================
+import json
+from io import StringIO
+
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/spreadsheets",
          "https://www.googleapis.com/auth/drive.file", "https://www.googleapis.com/auth/drive"]
-creds = ServiceAccountCredentials.from_json_keyfile_name("credenciales/cdlr-encuestas-32c834fe0e00.json", scope)
+
+creds_dict = json.loads(os.environ["GOOGLE_CREDS"])
+creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
 client = gspread.authorize(creds)
 
 # ============================
