@@ -1,3 +1,6 @@
+
+# ============================ IMPORTACIONES Y CONFIGURACIÓN INICIAL ============================
+
 from flask import Flask, render_template, request, redirect, url_for, session
 import sqlite3
 import os
@@ -5,105 +8,125 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import json
 
+# Inicializa la aplicación Flask
 app = Flask(__name__)
-app.secret_key = 'clave-super-secreta'
+app.secret_key = 'clave-super-secreta'  # Se usa para firmar las sesiones y mantener datos seguros entre solicitudes
 
-# ============================ CONEXIÓN GOOGLE SHEETS ============================
+# ============================ CONEXIÓN CON GOOGLE SHEETS ============================
+
+# Define los permisos necesarios para trabajar con Google Sheets y Google Drive
 scope = [
     "https://spreadsheets.google.com/feeds",
     "https://www.googleapis.com/auth/spreadsheets",
     "https://www.googleapis.com/auth/drive.file",
     "https://www.googleapis.com/auth/drive"
 ]
+
+# Obtiene las credenciales del archivo JSON desde la variable de entorno GOOGLE_CREDS
 creds_dict = json.loads(os.environ["GOOGLE_CREDS"])
 creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
-client = gspread.authorize(creds)
+client = gspread.authorize(creds)  # Cliente autorizado para acceder a los datos del Google Sheet
 
 # ============================ FUNCIONES AUXILIARES ============================
 
-def cargar_preguntas_activas(cliente, password):
+def cargar_clientes():
+    """
+    Carga todos los datos de la hoja 'Clientes' y los devuelve como un diccionario con el nombre del cliente como clave.
+    Este diccionario se usa para buscar la contraseña, logo, colores y métodos de contacto del cliente.
+    """
     sheet = client.open_by_key("1v6yY39CcjQR1KnZHDRdr3VGLG7-CVbBmigTh399RDEs")
-    preguntas_sheet = sheet.worksheet("Preguntas")
-    encuesta_sheet = sheet.worksheet("Encuesta")
+    hoja_clientes = sheet.worksheet("Clientes")
+    registros = hoja_clientes.get_all_records()
+    return {fila['Cliente']: fila for fila in registros}
 
-    preguntas_data = preguntas_sheet.get_all_records()
-    encuesta_data = encuesta_sheet.get_all_records()
+def cargar_preguntas_para_cliente(cliente, password):
+    """
+    Obtiene los IDs de preguntas asignados en la hoja 'Encuestas' para el cliente indicado, 
+    valida la contraseña contra la hoja 'Clientes', y extrae las preguntas correspondientes de la hoja 'Preguntas'.
+    """
+    sheet = client.open_by_key("1v6yY39CcjQR1KnZHDRdr3VGLG7-CVbBmigTh399RDEs")
+    hoja_preguntas = sheet.worksheet("Preguntas")
+    hoja_encuestas = sheet.worksheet("Encuesta")
+    hoja_clientes = sheet.worksheet("Clientes")
 
-    encuesta_cliente = next((e for e in encuesta_data if e['Clientes'].strip() == cliente and e['password'].strip() == password), None)
-    if not encuesta_cliente or not encuesta_cliente.get('Preguntas'):
+    datos_preguntas = hoja_preguntas.get_all_records()
+    datos_encuestas = hoja_encuestas.get_all_records()
+    datos_clientes = hoja_clientes.get_all_records()
+
+    # Verifica si hay una encuesta activa para ese cliente
+    encuesta = next((e for e in datos_encuestas if e["Activo"].strip().lower() == "yes" and e["Cliente"].strip() == cliente), None)
+    if not encuesta:
         return None
 
-    preguntas_ids = [pid.strip() for pid in encuesta_cliente['Preguntas'].split(',')]
-    preguntas = {}
-    for pid in preguntas_ids:
-        pregunta_row = next((p for p in preguntas_data if str(p['ID']).strip() == pid), None)
-        if pregunta_row:
-            area = pregunta_row['Area'].strip()
-            preguntas.setdefault(area, []).append(pregunta_row['Pregunta'].strip())
-    return preguntas
+    # Verifica la contraseña del cliente
+    cliente_data = next((c for c in datos_clientes if c["Cliente"].strip() == cliente and c["Password"].strip() == password), None)
+    if not cliente_data:
+        return None
 
-def cargar_clientes():
-    sheet = client.open_by_key("1v6yY39CcjQR1KnZHDRdr3VGLG7-CVbBmigTh399RDEs")
-    hoja = sheet.worksheet("Clientes")
-    clientes = hoja.get_all_records()
-    return {cliente['Cliente']: cliente for cliente in clientes}
+    # Extrae los IDs de las preguntas definidos en la hoja Encuesta
+    ids_preguntas = [pid.strip() for pid in encuesta["Preguntas"].split(',')]
 
-CLIENTES = cargar_clientes()
+    # Agrupa las preguntas por área para dividirlas en secciones
+    preguntas_por_area = {}
+    for pid in ids_preguntas:
+        fila = next((p for p in datos_preguntas if str(p["ID"]).strip() == pid), None)
+        if fila:
+            area = fila["Area"].strip()
+            preguntas_por_area.setdefault(area, []).append(fila["Pregunta"].strip())
+
+    return preguntas_por_area
+
+# Escala fija usada para todas las encuestas
 ESCALA = ["Nunca", "En ocasiones", "Con frecuencia", "Casi siempre", "Siempre"]
 
-def init_db():
-    conn = sqlite3.connect('respuestas.db')
-    c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS respuestas (
-                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                 cliente TEXT,
-                 area TEXT,
-                 pregunta TEXT,
-                 respuesta TEXT
-                 )''')
-    conn.commit()
-    conn.close()
-
-# ============================ RUTAS ============================
+# ============================ RUTAS DE LA APLICACIÓN ============================
 
 @app.route('/', methods=['GET', 'POST'])
 def login():
+    """
+    Ruta principal: muestra un formulario para ingresar cliente y contraseña.
+    Si son válidos, redirige al formulario de encuesta. En caso contrario, muestra mensaje de error.
+    """
     error = ""
     if request.method == 'POST':
         cliente_ingresado = request.form['cliente']
         password = request.form['password']
-        cliente_info = CLIENTES.get(cliente_ingresado)
-        if cliente_info and password == cliente_info['password']:
-            preguntas = cargar_preguntas_activas(cliente_ingresado, password)
-            if not preguntas:
-                error = "No se encontraron preguntas activas para este cliente."
-            else:
-                session['autenticado'] = True
-                session['cliente'] = cliente_ingresado
-                session['pagina'] = 0
-                session['respuestas'] = {}
-                session['preguntas'] = preguntas
-                return redirect(url_for('formulario'))
+
+        preguntas_por_area = cargar_preguntas_para_cliente(cliente_ingresado, password)
+        if preguntas_por_area:
+            session['autenticado'] = True
+            session['cliente'] = cliente_ingresado
+            session['pagina'] = 0
+            session['respuestas'] = {}
+            session['preguntas'] = preguntas_por_area
+            return redirect(url_for('formulario'))
         else:
-            error = "Cliente o contraseña incorrectos."
+            error = "Cliente, contraseña o configuración de encuesta incorrecta."
+
     return render_template("login.html", error=error)
 
 @app.route('/encuesta', methods=['GET', 'POST'])
 def formulario():
+    """
+    Muestra y gestiona las preguntas por secciones. Controla el avance (siguiente/anterior) 
+    y guarda las respuestas en sesión. Al final, redirige a la página de agradecimiento.
+    """
     if not session.get('autenticado'):
         return redirect(url_for('login'))
 
     cliente = session['cliente']
-    preguntas_dict = session['preguntas']
-    cliente_info = CLIENTES.get(cliente, {})
-    secciones = list(preguntas_dict.keys())
+    preguntas_por_area = session['preguntas']
+    secciones = list(preguntas_por_area.keys())
     pagina = session.get('pagina', 0)
 
     if pagina >= len(secciones):
         return redirect(url_for('gracias'))
 
     area_actual = secciones[pagina]
-    preguntas = preguntas_dict[area_actual]
+    preguntas = preguntas_por_area[area_actual]
+
+    # Obtiene información visual del cliente desde CLIENTES global
+    cliente_info = CLIENTES.get(cliente, {"logo": "", "colorhex": "#FFFFFF"})
 
     if request.method == 'POST':
         respuestas_form = {}
@@ -113,7 +136,7 @@ def formulario():
                 error = "Por favor responde todas las preguntas antes de continuar."
                 return render_template("encuesta.html", preguntas=preguntas, area=area_actual, escala=ESCALA,
                                        pagina=pagina, total=len(secciones), error=error,
-                                       cliente_logo=cliente_info['logo'], color_fondo=cliente_info['colorhex'],
+                                       cliente_logo=cliente_info["logo"], color_fondo=cliente_info["colorhex"],
                                        cdlr_logo="https://iskali.com.mx/wp-content/uploads/2025/05/CDLR.png")
             respuestas_form[f'{area_actual}_{i}'] = (area_actual, pregunta, respuesta)
 
@@ -124,31 +147,27 @@ def formulario():
         elif 'anterior' in request.form:
             session['pagina'] -= 1
 
-        if session['pagina'] >= len(secciones):
-            conn = sqlite3.connect('respuestas.db')
-            c = conn.cursor()
-            for _, (area, pregunta, respuesta) in session['respuestas'].items():
-                c.execute("INSERT INTO respuestas (cliente, area, pregunta, respuesta) VALUES (?, ?, ?, ?)",
-                          (cliente, area, pregunta, respuesta))
-            conn.commit()
-            conn.close()
-            session.clear()
-            return render_template("gracias.html",
-                                   cliente_logo=cliente_info['logo'],
-                                   cdlr_logo="https://iskali.com.mx/wp-content/uploads/2025/05/CDLR.png",
-                                   color_fondo=cliente_info['colorhex'])
-
         return redirect(url_for('formulario'))
 
     return render_template("encuesta.html", preguntas=preguntas, area=area_actual, escala=ESCALA,
                            pagina=pagina, total=len(secciones), error="",
-                           cliente_logo=cliente_info['logo'], color_fondo=cliente_info['colorhex'],
+                           cliente_logo=cliente_info["logo"], color_fondo=cliente_info["colorhex"],
                            cdlr_logo="https://iskali.com.mx/wp-content/uploads/2025/05/CDLR.png")
 
 @app.route('/gracias')
 def gracias():
-    return render_template("gracias.html")
+    """
+    Página final después de completar la encuesta.
+    """
+    cliente = session.get('cliente', '')
+    cliente_info = CLIENTES.get(cliente, {"logo": "", "colorhex": "#FFFFFF"})
+    return render_template("gracias.html", cliente_logo=cliente_info["logo"],
+                           color_fondo=cliente_info["colorhex"],
+                           cdlr_logo="https://iskali.com.mx/wp-content/uploads/2025/05/CDLR.png")
+
+# ============================ INICIALIZADOR LOCAL ============================
 
 if __name__ == '__main__':
-    init_db()
-    app.run(host="0.0.0.0", port=10000, debug=True)
+    # Precarga los datos de clientes para visualización e imagen
+    CLIENTES = cargar_clientes()
+    app.run(debug=True, port=10000)
