@@ -46,7 +46,7 @@ def cargar_preguntas_para_cliente(cliente, password):
     """
     sheet = client.open_by_key("1v6yY39CcjQR1KnZHDRdr3VGLG7-CVbBmigTh399RDEs")
     hoja_preguntas = sheet.worksheet("Preguntas")
-    hoja_encuestas = sheet.worksheet("Encuesta")
+    hoja_encuestas = sheet.worksheet("Encuestas")
     hoja_clientes = sheet.worksheet("Clientes")
 
     datos_preguntas = hoja_preguntas.get_all_records()
