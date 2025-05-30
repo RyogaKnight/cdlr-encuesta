@@ -2,9 +2,9 @@
 # ============================ IMPORTACIONES Y CONFIGURACIÓN INICIAL ============================
 
 from flask import Flask, render_template, request, redirect, url_for, session
-import sqlite3
 import os
 import gspread
+import psycopg2 
 from oauth2client.service_account import ServiceAccountCredentials
 import json
 
@@ -158,12 +158,39 @@ def formulario():
 def gracias():
     """
     Página final después de completar la encuesta.
+    Aquí también se guardan las respuestas en la base de datos PostgreSQL (Supabase).
     """
     cliente = session.get('cliente', '')
     cliente_info = CLIENTES.get(cliente, {"Logo": "", "Colorhex": "#FFFFFF"})
+
+    # Guardar respuestas en Supabase
+    for _, (area, pregunta, respuesta) in session['respuestas'].items():
+        guardar_respuesta_en_supabase(cliente, area, pregunta, respuesta, encuesta_id=1)
+
     return render_template("gracias.html", cliente_logo=cliente_info["Logo"],
                            color_fondo=cliente_info["Colorhex"],
                            cdlr_logo="https://iskali.com.mx/wp-content/uploads/2025/05/CDLR.png")
+
+# ============================ ENVIAR RESPUESTAS A SUPABASE SQL ============================
+
+def guardar_respuesta_en_supabase(cliente, area, pregunta, respuesta, encuesta_id=1):
+    """
+    Inserta una respuesta individual en la base de datos PostgreSQL de Supabase.
+    Usa variables de entorno para seguridad.
+    """
+    try:
+        conn = psycopg2.connect(os.environ["SUPABASE_URL"])
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO respuestas (encuesta, cliente, area, pregunta, respuesta)
+            VALUES (%s, %s, %s, %s, %s)
+        """, (encuesta_id, cliente, area, pregunta, respuesta))
+        conn.commit()
+        cursor.close()
+        conn.close()
+    except Exception as e:
+        print("Error al guardar en Supabase:", e)
+
 
 # ============================ INICIALIZADOR LOCAL ============================
 

@@ -4,3 +4,4 @@ __pycache__/
 respuestas.db
 credenciales/
 test_mysql.py
+test_supabase
