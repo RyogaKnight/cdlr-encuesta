@@ -126,7 +126,7 @@ def formulario():
     preguntas = preguntas_por_area[area_actual]
 
     # Obtiene información visual del cliente desde CLIENTES global
-    cliente_info = CLIENTES.get(cliente, {"logo": "", "colorhex": "#FFFFFF"})
+    cliente_info = CLIENTES.get(cliente, {"Logo": "", "Colorhex": "#FFFFFF"})
 
     if request.method == 'POST':
         respuestas_form = {}
@@ -151,7 +151,7 @@ def formulario():
 
     return render_template("encuesta.html", preguntas=preguntas, area=area_actual, escala=ESCALA,
                            pagina=pagina, total=len(secciones), error="",
-                           cliente_logo=cliente_info["logo"], color_fondo=cliente_info["colorhex"],
+                           cliente_logo=cliente_info["Logo"], color_fondo=cliente_info["Colorhex"],
                            cdlr_logo="https://iskali.com.mx/wp-content/uploads/2025/05/CDLR.png")
 
 @app.route('/gracias')
@@ -160,9 +160,9 @@ def gracias():
     Página final después de completar la encuesta.
     """
     cliente = session.get('cliente', '')
-    cliente_info = CLIENTES.get(cliente, {"logo": "", "colorhex": "#FFFFFF"})
-    return render_template("gracias.html", cliente_logo=cliente_info["logo"],
-                           color_fondo=cliente_info["colorhex"],
+    cliente_info = CLIENTES.get(cliente, {"Logo": "", "Colorhex": "#FFFFFF"})
+    return render_template("gracias.html", cliente_logo=cliente_info["Logo"],
+                           color_fondo=cliente_info["Colorhex"],
                            cdlr_logo="https://iskali.com.mx/wp-content/uploads/2025/05/CDLR.png")
 
 # ============================ INICIALIZADOR LOCAL ============================
