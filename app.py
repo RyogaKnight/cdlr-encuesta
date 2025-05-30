@@ -170,4 +170,8 @@ def gracias():
 if __name__ == '__main__':
     # Precarga los datos de clientes para visualización e imagen
     CLIENTES = cargar_clientes()
-    app.run(debug=True, port=10000)
+
+    # Render necesita que el host sea 0.0.0.0 y que el puerto se tome desde la variable de entorno "PORT"
+    import os
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, debug=True)
