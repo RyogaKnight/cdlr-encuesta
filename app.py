@@ -4,16 +4,17 @@ import os
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import json
-from io import StringIO
 
-# ============================ CONFIGURACIÓN FLASK ============================
 app = Flask(__name__)
 app.secret_key = 'clave-super-secreta'
 
 # ============================ CONEXIÓN GOOGLE SHEETS ============================
-scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/spreadsheets",
-         "https://www.googleapis.com/auth/drive.file", "https://www.googleapis.com/auth/drive"]
-
+scope = [
+    "https://spreadsheets.google.com/feeds",
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/drive.file",
+    "https://www.googleapis.com/auth/drive"
+]
 creds_dict = json.loads(os.environ["GOOGLE_CREDS"])
 creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
 client = gspread.authorize(creds)
@@ -28,13 +29,11 @@ def cargar_preguntas_activas(cliente, password):
     preguntas_data = preguntas_sheet.get_all_records()
     encuesta_data = encuesta_sheet.get_all_records()
 
-    # Filtrar la encuesta por cliente y password
-    encuesta_cliente = next((e for e in encuesta_data if e['Cliente'].strip() == cliente and e['password'].strip() == password), None)
-    if not encuesta_cliente:
+    encuesta_cliente = next((e for e in encuesta_data if e['Clientes'].strip() == cliente and e['password'].strip() == password), None)
+    if not encuesta_cliente or not encuesta_cliente.get('Preguntas'):
         return None
 
     preguntas_ids = [pid.strip() for pid in encuesta_cliente['Preguntas'].split(',')]
-    
     preguntas = {}
     for pid in preguntas_ids:
         pregunta_row = next((p for p in preguntas_data if str(p['ID']).strip() == pid), None)
@@ -51,8 +50,6 @@ def cargar_clientes():
 
 CLIENTES = cargar_clientes()
 ESCALA = ["Nunca", "En ocasiones", "Con frecuencia", "Casi siempre", "Siempre"]
-
-# ============================ BASE DE DATOS ============================
 
 def init_db():
     conn = sqlite3.connect('respuestas.db')
@@ -150,9 +147,7 @@ def formulario():
 
 @app.route('/gracias')
 def gracias():
-    return "<h1>Gracias por completar la encuesta.</h1>"
-
-# ============================ INICIO APP ============================
+    return render_template("gracias.html")
 
 if __name__ == '__main__':
     init_db()
