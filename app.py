@@ -3,19 +3,14 @@ import sqlite3
 import os
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
-
-# ============================
-# Sección: Inicialización de Flask
-# ============================
-app = Flask(__name__)
-app.secret_key = 'clave-super-secreta'  # Necesaria para usar sesiones
-
-# ============================
-# Sección: Google Sheets - Autenticación y lectura
-# ============================
 import json
 from io import StringIO
 
+# ============================ CONFIGURACIÓN FLASK ============================
+app = Flask(__name__)
+app.secret_key = 'clave-super-secreta'
+
+# ============================ CONEXIÓN GOOGLE SHEETS ============================
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/spreadsheets",
          "https://www.googleapis.com/auth/drive.file", "https://www.googleapis.com/auth/drive"]
 
@@ -23,18 +18,29 @@ creds_dict = json.loads(os.environ["GOOGLE_CREDS"])
 creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
 client = gspread.authorize(creds)
 
-# ============================
-# Sección: Lectura dinámica desde Google Sheets
-# ============================
-def cargar_preguntas():
+# ============================ FUNCIONES AUXILIARES ============================
+
+def cargar_preguntas_activas(cliente, password):
     sheet = client.open_by_key("1v6yY39CcjQR1KnZHDRdr3VGLG7-CVbBmigTh399RDEs")
-    hoja = sheet.worksheet("Preguntas")
-    data = hoja.get_all_records()
+    preguntas_sheet = sheet.worksheet("Preguntas")
+    encuesta_sheet = sheet.worksheet("Encuesta")
+
+    preguntas_data = preguntas_sheet.get_all_records()
+    encuesta_data = encuesta_sheet.get_all_records()
+
+    # Filtrar la encuesta por cliente y password
+    encuesta_cliente = next((e for e in encuesta_data if e['Cliente'].strip() == cliente and e['password'].strip() == password), None)
+    if not encuesta_cliente:
+        return None
+
+    preguntas_ids = [pid.strip() for pid in encuesta_cliente['Preguntas'].split(',')]
+    
     preguntas = {}
-    for row in data:
-        if row['Activo'].strip().lower() == 'si':
-            area = row['Area'].strip()
-            preguntas.setdefault(area, []).append(row['Pregunta'].strip())
+    for pid in preguntas_ids:
+        pregunta_row = next((p for p in preguntas_data if str(p['ID']).strip() == pid), None)
+        if pregunta_row:
+            area = pregunta_row['Area'].strip()
+            preguntas.setdefault(area, []).append(pregunta_row['Pregunta'].strip())
     return preguntas
 
 def cargar_clientes():
@@ -43,14 +49,11 @@ def cargar_clientes():
     clientes = hoja.get_all_records()
     return {cliente['Cliente']: cliente for cliente in clientes}
 
-PREGUNTAS = cargar_preguntas()
 CLIENTES = cargar_clientes()
-SECCIONES = list(PREGUNTAS.keys())
 ESCALA = ["Nunca", "En ocasiones", "Con frecuencia", "Casi siempre", "Siempre"]
 
-# ============================
-# Sección: Inicialización de base de datos
-# ============================
+# ============================ BASE DE DATOS ============================
+
 def init_db():
     conn = sqlite3.connect('respuestas.db')
     c = conn.cursor()
@@ -64,39 +67,46 @@ def init_db():
     conn.commit()
     conn.close()
 
-# ============================
-# Sección: Ruta de login
-# ============================
+# ============================ RUTAS ============================
+
 @app.route('/', methods=['GET', 'POST'])
 def login():
     error = ""
     if request.method == 'POST':
         cliente_ingresado = request.form['cliente']
         password = request.form['password']
-        cliente_data = CLIENTES.get(cliente_ingresado)
-        if cliente_data and password == cliente_data['password']:
-            session['autenticado'] = True
-            session['cliente'] = cliente_ingresado
-            session['pagina'] = 0
-            session['respuestas'] = {}
-            return redirect(url_for('formulario'))
+        cliente_info = CLIENTES.get(cliente_ingresado)
+        if cliente_info and password == cliente_info['password']:
+            preguntas = cargar_preguntas_activas(cliente_ingresado, password)
+            if not preguntas:
+                error = "No se encontraron preguntas activas para este cliente."
+            else:
+                session['autenticado'] = True
+                session['cliente'] = cliente_ingresado
+                session['pagina'] = 0
+                session['respuestas'] = {}
+                session['preguntas'] = preguntas
+                return redirect(url_for('formulario'))
         else:
             error = "Cliente o contraseña incorrectos."
     return render_template("login.html", error=error)
 
-# ============================
-# Sección: Formulario dividido por secciones
-# ============================
 @app.route('/encuesta', methods=['GET', 'POST'])
 def formulario():
     if not session.get('autenticado'):
         return redirect(url_for('login'))
 
-    pagina = session.get('pagina', 0)
-    area_actual = SECCIONES[pagina]
-    preguntas = PREGUNTAS[area_actual]
     cliente = session['cliente']
+    preguntas_dict = session['preguntas']
     cliente_info = CLIENTES.get(cliente, {})
+    secciones = list(preguntas_dict.keys())
+    pagina = session.get('pagina', 0)
+
+    if pagina >= len(secciones):
+        return redirect(url_for('gracias'))
+
+    area_actual = secciones[pagina]
+    preguntas = preguntas_dict[area_actual]
 
     if request.method == 'POST':
         respuestas_form = {}
@@ -105,9 +115,9 @@ def formulario():
             if not respuesta:
                 error = "Por favor responde todas las preguntas antes de continuar."
                 return render_template("encuesta.html", preguntas=preguntas, area=area_actual, escala=ESCALA,
-                                          pagina=pagina, total=len(SECCIONES), error=error,
-                                          cliente_logo=cliente_info['logo'], color_fondo=cliente_info['colorhex'], 
-                                          cdlr_logo="https://iskali.com.mx/wp-content/uploads/2025/05/CDLR.png")
+                                       pagina=pagina, total=len(secciones), error=error,
+                                       cliente_logo=cliente_info['logo'], color_fondo=cliente_info['colorhex'],
+                                       cdlr_logo="https://iskali.com.mx/wp-content/uploads/2025/05/CDLR.png")
             respuestas_form[f'{area_actual}_{i}'] = (area_actual, pregunta, respuesta)
 
         session['respuestas'].update(respuestas_form)
@@ -117,7 +127,7 @@ def formulario():
         elif 'anterior' in request.form:
             session['pagina'] -= 1
 
-        if session['pagina'] >= len(SECCIONES):
+        if session['pagina'] >= len(secciones):
             conn = sqlite3.connect('respuestas.db')
             c = conn.cursor()
             for _, (area, pregunta, respuesta) in session['respuestas'].items():
@@ -127,21 +137,23 @@ def formulario():
             conn.close()
             session.clear()
             return render_template("gracias.html",
-    		cliente_logo=cliente_info['logo'],
-   		 cdlr_logo="https://iskali.com.mx/wp-content/uploads/2025/05/CDLR.png",
-   		 color_fondo=cliente_info['colorhex']
-					)
+                                   cliente_logo=cliente_info['logo'],
+                                   cdlr_logo="https://iskali.com.mx/wp-content/uploads/2025/05/CDLR.png",
+                                   color_fondo=cliente_info['colorhex'])
 
         return redirect(url_for('formulario'))
 
     return render_template("encuesta.html", preguntas=preguntas, area=area_actual, escala=ESCALA,
-                              pagina=pagina, total=len(SECCIONES), error="",
-                              cliente_logo=cliente_info['logo'], color_fondo=cliente_info['colorhex'], 
-                              cdlr_logo="https://iskali.com.mx/wp-content/uploads/2025/05/CDLR.png")
+                           pagina=pagina, total=len(secciones), error="",
+                           cliente_logo=cliente_info['logo'], color_fondo=cliente_info['colorhex'],
+                           cdlr_logo="https://iskali.com.mx/wp-content/uploads/2025/05/CDLR.png")
 
-# ============================
-# Sección: Inicio de la app Flask
-# ============================
+@app.route('/gracias')
+def gracias():
+    return "<h1>Gracias por completar la encuesta.</h1>"
+
+# ============================ INICIO APP ============================
+
 if __name__ == '__main__':
     init_db()
     app.run(host="0.0.0.0", port=10000, debug=True)
