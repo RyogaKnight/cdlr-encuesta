@@ -136,7 +136,7 @@ def formulario():
                 error = "Por favor responde todas las preguntas antes de continuar."
                 return render_template("encuesta.html", preguntas=preguntas, area=area_actual, escala=ESCALA,
                                        pagina=pagina, total=len(secciones), error=error,
-                                       cliente_logo=cliente_info["logo"], color_fondo=cliente_info["colorhex"],
+                                       cliente_logo=cliente_info["Logo"], color_fondo=cliente_info["Colorhex"],
                                        cdlr_logo="https://iskali.com.mx/wp-content/uploads/2025/05/CDLR.png")
             respuestas_form[f'{area_actual}_{i}'] = (area_actual, pregunta, respuesta)
 
