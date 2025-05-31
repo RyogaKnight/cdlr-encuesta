@@ -31,6 +31,12 @@
       color: #555;
     }
 
+    .mensaje-final {
+      margin-top: 20px;
+      font-weight: bold;
+      font-size: 1.1em;
+    }
+
     .logos {
       display: flex;
       justify-content: center;
@@ -52,6 +58,10 @@
         font-size: 1em;
       }
 
+      .mensaje-final {
+        font-size: 1em;
+      }
+
       .logos {
         flex-direction: column;
         gap: 20px;
@@ -67,6 +77,13 @@
   <div class="contenedor">
     <h2>¡Gracias por completar la encuesta!</h2>
     <p>Tu opinión es muy valiosa para mejorar el clima laboral.</p>
+
+    {% if mensaje %}
+      <div class="mensaje-final" style="color: {% if 'error' in mensaje or 'error' in mensaje.lower() %}red{% else %}green{% endif %};">
+        {{ mensaje }}
+      </div>
+    {% endif %}
+
     <div class="logos">
       <img src="{{ cliente_logo }}" alt="Logo Cliente">
       <img src="{{ cdlr_logo }}" alt="Logo CDLR">
