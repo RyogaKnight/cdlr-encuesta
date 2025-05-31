@@ -1,20 +1,19 @@
-
 # ============================ IMPORTACIONES Y CONFIGURACIÓN INICIAL ============================
 
 from flask import Flask, render_template, request, redirect, url_for, session
 import os
 import gspread
-import psycopg2 
+import psycopg2
 from oauth2client.service_account import ServiceAccountCredentials
 import json
 
 # Inicializa la aplicación Flask
 app = Flask(__name__)
-app.secret_key = 'clave-super-secreta'  # Se usa para firmar las sesiones y mantener datos seguros entre solicitudes
+app.secret_key = 'clave-super-secreta'  # Se usa para mantener la sesión segura entre páginas
 
 # ============================ CONEXIÓN CON GOOGLE SHEETS ============================
 
-# Define los permisos necesarios para trabajar con Google Sheets y Google Drive
+# Define los permisos necesarios para acceder a Sheets y Drive
 scope = [
     "https://spreadsheets.google.com/feeds",
     "https://www.googleapis.com/auth/spreadsheets",
@@ -22,18 +21,40 @@ scope = [
     "https://www.googleapis.com/auth/drive"
 ]
 
-# Obtiene las credenciales del archivo JSON desde la variable de entorno GOOGLE_CREDS
+# Autenticación con Google mediante la variable de entorno GOOGLE_CREDS
 creds_dict = json.loads(os.environ["GOOGLE_CREDS"])
 creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
-client = gspread.authorize(creds)  # Cliente autorizado para acceder a los datos del Google Sheet
+client = gspread.authorize(creds)
+
+# ============================ ENVIAR RESPUESTAS A SUPABASE ============================
+
+def guardar_respuesta_en_supabase(cliente, area, pregunta, respuesta, encuesta_id=1):
+    """
+    Inserta cada respuesta en Supabase (PostgreSQL).
+    Requiere la variable de entorno SUPABASE_URL con el string de conexión.
+    """
+    try:
+        conn = psycopg2.connect(os.environ["SUPABASE_URL"])
+        cursor = conn.cursor()
+
+        # DEBUG: mostrar lo que se va a insertar
+        print(f"Guardando respuesta -> Cliente: {cliente}, Área: {area}, Pregunta: {pregunta}, Respuesta: {respuesta}")
+
+        cursor.execute("""
+            INSERT INTO respuestas (encuesta, cliente, area, pregunta, respuesta)
+            VALUES (%s, %s, %s, %s, %s)
+        """, (encuesta_id, cliente, area, pregunta, respuesta))
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+    except Exception as e:
+        print("⚠️ Error al guardar en Supabase:", e)
 
 # ============================ FUNCIONES AUXILIARES ============================
 
 def cargar_clientes():
-    """
-    Carga todos los datos de la hoja 'Clientes' y los devuelve como un diccionario con el nombre del cliente como clave.
-    Este diccionario se usa para buscar la contraseña, logo, colores y métodos de contacto del cliente.
-    """
+    """Carga la hoja 'Clientes' como diccionario para acceso rápido por nombre."""
     sheet = client.open_by_key("1v6yY39CcjQR1KnZHDRdr3VGLG7-CVbBmigTh399RDEs")
     hoja_clientes = sheet.worksheet("Clientes")
     registros = hoja_clientes.get_all_records()
@@ -41,8 +62,8 @@ def cargar_clientes():
 
 def cargar_preguntas_para_cliente(cliente, password):
     """
-    Obtiene los IDs de preguntas asignados en la hoja 'Encuestas' para el cliente indicado, 
-    valida la contraseña contra la hoja 'Clientes', y extrae las preguntas correspondientes de la hoja 'Preguntas'.
+    Verifica si hay una encuesta activa y válida para el cliente.
+    Extrae los IDs de preguntas asignadas y las organiza por área.
     """
     sheet = client.open_by_key("1v6yY39CcjQR1KnZHDRdr3VGLG7-CVbBmigTh399RDEs")
     hoja_preguntas = sheet.worksheet("Preguntas")
@@ -53,20 +74,16 @@ def cargar_preguntas_para_cliente(cliente, password):
     datos_encuestas = hoja_encuestas.get_all_records()
     datos_clientes = hoja_clientes.get_all_records()
 
-    # Verifica si hay una encuesta activa para ese cliente
     encuesta = next((e for e in datos_encuestas if e["Activo"].strip().lower() == "yes" and e["Cliente"].strip() == cliente), None)
     if not encuesta:
         return None
 
-    # Verifica la contraseña del cliente
     cliente_data = next((c for c in datos_clientes if c["Cliente"].strip() == cliente and c["Password"].strip() == password), None)
     if not cliente_data:
         return None
 
-    # Extrae los IDs de las preguntas definidos en la hoja Encuesta
     ids_preguntas = [pid.strip() for pid in encuesta["Preguntas"].split(',')]
 
-    # Agrupa las preguntas por área para dividirlas en secciones
     preguntas_por_area = {}
     for pid in ids_preguntas:
         fila = next((p for p in datos_preguntas if str(p["ID"]).strip() == pid), None)
@@ -76,17 +93,14 @@ def cargar_preguntas_para_cliente(cliente, password):
 
     return preguntas_por_area
 
-# Escala fija usada para todas las encuestas
+# Escala común para todas las respuestas
 ESCALA = ["Nunca", "En ocasiones", "Con frecuencia", "Casi siempre", "Siempre"]
 
-# ============================ RUTAS DE LA APLICACIÓN ============================
+# ============================ RUTAS FLASK ============================
 
 @app.route('/', methods=['GET', 'POST'])
 def login():
-    """
-    Ruta principal: muestra un formulario para ingresar cliente y contraseña.
-    Si son válidos, redirige al formulario de encuesta. En caso contrario, muestra mensaje de error.
-    """
+    """Página de login para ingresar cliente y contraseña."""
     error = ""
     if request.method == 'POST':
         cliente_ingresado = request.form['cliente']
@@ -107,10 +121,7 @@ def login():
 
 @app.route('/encuesta', methods=['GET', 'POST'])
 def formulario():
-    """
-    Muestra y gestiona las preguntas por secciones. Controla el avance (siguiente/anterior) 
-    y guarda las respuestas en sesión. Al final, redirige a la página de agradecimiento.
-    """
+    """Página que muestra las preguntas una por una y guarda respuestas en sesión."""
     if not session.get('autenticado'):
         return redirect(url_for('login'))
 
@@ -124,8 +135,6 @@ def formulario():
 
     area_actual = secciones[pagina]
     preguntas = preguntas_por_area[area_actual]
-
-    # Obtiene información visual del cliente desde CLIENTES global
     cliente_info = CLIENTES.get(cliente, {"Logo": "", "Colorhex": "#FFFFFF"})
 
     if request.method == 'POST':
@@ -156,14 +165,10 @@ def formulario():
 
 @app.route('/gracias')
 def gracias():
-    """
-    Página final después de completar la encuesta.
-    Aquí también se guardan las respuestas en la base de datos PostgreSQL (Supabase).
-    """
+    """Página final. Guarda respuestas en Supabase y muestra agradecimiento."""
     cliente = session.get('cliente', '')
     cliente_info = CLIENTES.get(cliente, {"Logo": "", "Colorhex": "#FFFFFF"})
 
-    # Guardar respuestas en Supabase
     for _, (area, pregunta, respuesta) in session['respuestas'].items():
         guardar_respuesta_en_supabase(cliente, area, pregunta, respuesta, encuesta_id=1)
 
@@ -171,34 +176,9 @@ def gracias():
                            color_fondo=cliente_info["Colorhex"],
                            cdlr_logo="https://iskali.com.mx/wp-content/uploads/2025/05/CDLR.png")
 
-# ============================ ENVIAR RESPUESTAS A SUPABASE SQL ============================
-
-def guardar_respuesta_en_supabase(cliente, area, pregunta, respuesta, encuesta_id=1):
-    """
-    Inserta una respuesta individual en la base de datos PostgreSQL de Supabase.
-    Usa variables de entorno para seguridad.
-    """
-    try:
-        conn = psycopg2.connect(os.environ["SUPABASE_URL"])
-        cursor = conn.cursor()
-        cursor.execute("""
-            INSERT INTO respuestas (encuesta, cliente, area, pregunta, respuesta)
-            VALUES (%s, %s, %s, %s, %s)
-        """, (encuesta_id, cliente, area, pregunta, respuesta))
-        conn.commit()
-        cursor.close()
-        conn.close()
-    except Exception as e:
-        print("Error al guardar en Supabase:", e)
-
-
 # ============================ INICIALIZADOR LOCAL ============================
 
 if __name__ == '__main__':
-    # Precarga los datos de clientes para visualización e imagen
     CLIENTES = cargar_clientes()
-
-    # Render necesita que el host sea 0.0.0.0 y que el puerto se tome desde la variable de entorno "PORT"
-    import os
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
