@@ -9,11 +9,11 @@ import json
 
 # Inicializa la aplicación Flask
 app = Flask(__name__)
-app.secret_key = 'clave-super-secreta'  # Se usa para mantener la sesión segura entre páginas
+app.secret_key = 'clave-super-secreta'  # Se usa para firmar las sesiones y mantener datos seguros entre solicitudes
 
 # ============================ CONEXIÓN CON GOOGLE SHEETS ============================
 
-# Define los permisos necesarios para acceder a Sheets y Drive
+# Define los permisos necesarios para trabajar con Google Sheets y Google Drive
 scope = [
     "https://spreadsheets.google.com/feeds",
     "https://www.googleapis.com/auth/spreadsheets",
@@ -21,40 +21,18 @@ scope = [
     "https://www.googleapis.com/auth/drive"
 ]
 
-# Autenticación con Google mediante la variable de entorno GOOGLE_CREDS
+# Autenticación con credenciales JSON desde variable de entorno
 creds_dict = json.loads(os.environ["GOOGLE_CREDS"])
 creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
 client = gspread.authorize(creds)
 
-# ============================ ENVIAR RESPUESTAS A SUPABASE ============================
-
-def guardar_respuesta_en_supabase(cliente, area, pregunta, respuesta, encuesta_id=1):
-    """
-    Inserta cada respuesta en Supabase (PostgreSQL).
-    Requiere la variable de entorno SUPABASE_URL con el string de conexión.
-    """
-    try:
-        conn = psycopg2.connect(os.environ["SUPABASE_URL"])
-        cursor = conn.cursor()
-
-        # DEBUG: mostrar lo que se va a insertar
-        print(f"Guardando respuesta -> Cliente: {cliente}, Área: {area}, Pregunta: {pregunta}, Respuesta: {respuesta}")
-
-        cursor.execute("""
-            INSERT INTO respuestas (encuesta, cliente, area, pregunta, respuesta)
-            VALUES (%s, %s, %s, %s, %s)
-        """, (encuesta_id, cliente, area, pregunta, respuesta))
-
-        conn.commit()
-        cursor.close()
-        conn.close()
-    except Exception as e:
-        print("⚠️ Error al guardar en Supabase:", e)
-
 # ============================ FUNCIONES AUXILIARES ============================
 
 def cargar_clientes():
-    """Carga la hoja 'Clientes' como diccionario para acceso rápido por nombre."""
+    """
+    Lee los datos de la hoja 'Clientes' y devuelve un diccionario donde la clave es el nombre del cliente.
+    Esto permite acceder rápidamente a su configuración visual y contraseña.
+    """
     sheet = client.open_by_key("1v6yY39CcjQR1KnZHDRdr3VGLG7-CVbBmigTh399RDEs")
     hoja_clientes = sheet.worksheet("Clientes")
     registros = hoja_clientes.get_all_records()
@@ -62,8 +40,8 @@ def cargar_clientes():
 
 def cargar_preguntas_para_cliente(cliente, password):
     """
-    Verifica si hay una encuesta activa y válida para el cliente.
-    Extrae los IDs de preguntas asignadas y las organiza por área.
+    Verifica si existe una encuesta activa para el cliente, valida la contraseña y carga
+    las preguntas correspondientes desde Google Sheets agrupadas por área.
     """
     sheet = client.open_by_key("1v6yY39CcjQR1KnZHDRdr3VGLG7-CVbBmigTh399RDEs")
     hoja_preguntas = sheet.worksheet("Preguntas")
@@ -74,16 +52,18 @@ def cargar_preguntas_para_cliente(cliente, password):
     datos_encuestas = hoja_encuestas.get_all_records()
     datos_clientes = hoja_clientes.get_all_records()
 
+    # Buscar encuesta activa del cliente
     encuesta = next((e for e in datos_encuestas if e["Activo"].strip().lower() == "yes" and e["Cliente"].strip() == cliente), None)
     if not encuesta:
         return None
 
+    # Validar contraseña
     cliente_data = next((c for c in datos_clientes if c["Cliente"].strip() == cliente and c["Password"].strip() == password), None)
     if not cliente_data:
         return None
 
+    # Obtener IDs de preguntas y agruparlas por área
     ids_preguntas = [pid.strip() for pid in encuesta["Preguntas"].split(',')]
-
     preguntas_por_area = {}
     for pid in ids_preguntas:
         fila = next((p for p in datos_preguntas if str(p["ID"]).strip() == pid), None)
@@ -93,14 +73,17 @@ def cargar_preguntas_para_cliente(cliente, password):
 
     return preguntas_por_area
 
-# Escala común para todas las respuestas
+# Escala de respuestas estándar
 ESCALA = ["Nunca", "En ocasiones", "Con frecuencia", "Casi siempre", "Siempre"]
 
-# ============================ RUTAS FLASK ============================
+# ============================ RUTAS PRINCIPALES ============================
 
 @app.route('/', methods=['GET', 'POST'])
 def login():
-    """Página de login para ingresar cliente y contraseña."""
+    """
+    Página de inicio. Solicita el nombre del cliente y contraseña.
+    Si son válidos, inicia la sesión y carga preguntas desde Google Sheets.
+    """
     error = ""
     if request.method == 'POST':
         cliente_ingresado = request.form['cliente']
@@ -121,7 +104,10 @@ def login():
 
 @app.route('/encuesta', methods=['GET', 'POST'])
 def formulario():
-    """Página que muestra las preguntas una por una y guarda respuestas en sesión."""
+    """
+    Muestra las preguntas una sección a la vez. Navegación con botones "siguiente" y "anterior".
+    Guarda respuestas en la sesión. Al finalizar, redirige a la página de agradecimiento.
+    """
     if not session.get('autenticado'):
         return redirect(url_for('login'))
 
@@ -165,10 +151,14 @@ def formulario():
 
 @app.route('/gracias')
 def gracias():
-    """Página final. Guarda respuestas en Supabase y muestra agradecimiento."""
+    """
+    Página final que se muestra después de terminar la encuesta.
+    También guarda las respuestas en Supabase.
+    """
     cliente = session.get('cliente', '')
     cliente_info = CLIENTES.get(cliente, {"Logo": "", "Colorhex": "#FFFFFF"})
 
+    # Guardar en Supabase
     for _, (area, pregunta, respuesta) in session['respuestas'].items():
         guardar_respuesta_en_supabase(cliente, area, pregunta, respuesta, encuesta_id=1)
 
@@ -176,9 +166,33 @@ def gracias():
                            color_fondo=cliente_info["Colorhex"],
                            cdlr_logo="https://iskali.com.mx/wp-content/uploads/2025/05/CDLR.png")
 
-# ============================ INICIALIZADOR LOCAL ============================
+# ============================ CONEXIÓN Y ENVÍO A SUPABASE ============================
+
+def guardar_respuesta_en_supabase(cliente, area, pregunta, respuesta, encuesta_id=1):
+    """
+    Inserta una fila en la tabla 'respuestas' de Supabase.
+    Imprime errores si ocurre algún problema.
+    """
+    try:
+        conn = psycopg2.connect(os.environ["SUPABASE_URL"])
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO respuestas (encuesta, cliente, area, pregunta, respuesta)
+            VALUES (%s, %s, %s, %s, %s)
+        """, (encuesta_id, cliente, area, pregunta, respuesta))
+        conn.commit()
+        cursor.close()
+        conn.close()
+        print(f"✅ Guardado: {cliente} | {area} | {pregunta} | {respuesta}")
+    except Exception as e:
+        print("❌ Error al guardar en Supabase:", e)
+
+# ============================ INICIALIZADOR DE LA APP ============================
 
 if __name__ == '__main__':
+    # Precarga visuales del cliente
     CLIENTES = cargar_clientes()
+
+    # Render necesita que escuche en 0.0.0.0 y use la variable PORT
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
