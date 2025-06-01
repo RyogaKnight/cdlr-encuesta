@@ -9,137 +9,90 @@
       background-color: {{ color_fondo }};
       padding: 40px;
     }
-
     .contenedor {
       background-color: white;
-      padding: 40px;
+      padding: 30px;
       border-radius: 10px;
-      max-width: 800px;
+      max-width: 700px;
       margin: auto;
       box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
     }
-
     h2 {
       color: #333;
     }
-
     .pregunta {
-      margin-bottom: 20px;
+      margin-bottom: 25px;
     }
-
-    .escala, .score {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-      margin-top: 10px;
+    label {
+      font-weight: bold;
+      display: block;
+      margin-bottom: 5px;
     }
-
-    .score input[type="number"] {
-      width: 60px;
-      padding: 5px;
-    }
-
     textarea {
       width: 100%;
-      height: 100px;
-      padding: 10px;
-      margin-top: 10px;
+      height: 80px;
     }
-
     .botones {
-      margin-top: 30px;
       display: flex;
       justify-content: space-between;
+      margin-top: 30px;
     }
-
-    button {
-      padding: 10px 20px;
-      background-color: #0066cc;
-      color: white;
-      border: none;
-      border-radius: 5px;
-      cursor: pointer;
-    }
-
     .logos {
       display: flex;
       justify-content: center;
       gap: 60px;
-      margin-top: 40px;
+      margin-top: 30px;
     }
-
     .logos img {
-      height: 80px;
-    }
-
-    .error {
-      color: red;
-      font-weight: bold;
-    }
-
-    @media (max-width: 600px) {
-      .score input[type="number"] {
-        width: 40px;
-      }
-
-      button {
-        width: 100%;
-        margin-bottom: 10px;
-      }
-
-      .logos {
-        flex-direction: column;
-        gap: 20px;
-      }
+      height: 60px;
     }
   </style>
 </head>
 <body>
-  <div class="contenedor">
-    <h2>Sección: {{ area }}</h2>
+<div class="contenedor">
+  <h2>{{ area }}</h2>
 
-    {% if error %}
-      <p class="error">{{ error }}</p>
-    {% endif %}
+  {% if error %}
+    <p style="color: red; font-weight: bold;">{{ error }}</p>
+  {% endif %}
 
-    <form method="post">
-      {% for i, pregunta in enumerate(preguntas) %}
-        <div class="pregunta">
-          <p><strong>{{ i + 1 }}. {{ pregunta.texto }}</strong></p>
+  <form method="POST">
+    {% for pregunta in preguntas %}
+      {% set i = loop.index0 %}
+      <div class="pregunta">
+        <label for="{{ area }}_{{ i }}">{{ pregunta.texto }}</label>
 
-          {% if pregunta.tipo == 'Frecuencia' %}
-            <div class="escala">
-              {% for opcion in escala %}
-                <label>
-                  <input type="radio" name="{{ area }}_{{ i }}" value="{{ opcion }}">
-                  {{ opcion }}
-                </label>
-              {% endfor %}
-            </div>
+        {% if pregunta.tipo == 'Frecuencia' %}
+          {% for opcion in escala %}
+            <input type="radio" name="{{ area }}_{{ i }}" value="{{ opcion }}"> {{ opcion }}<br>
+          {% endfor %}
 
-          {% elif pregunta.tipo == 'Score' %}
-            <div class="score">
-              <input type="number" name="{{ area }}_{{ i }}" min="1" max="10" placeholder="1 a 10">
-            </div>
+        {% elif pregunta.tipo == 'Abierta' %}
+          <textarea name="{{ area }}_{{ i }}"></textarea>
 
-          {% elif pregunta.tipo == 'Abierta' %}
-            <textarea name="{{ area }}_{{ i }}" placeholder="Escribe tu respuesta..."></textarea>
-          {% endif %}
-        </div>
-      {% endfor %}
-
-      <div class="botones">
-        {% if pagina > 0 %}
-          <button type="submit" name="anterior">Anterior</button>
+        {% elif pregunta.tipo == 'Score' %}
+          <select name="{{ area }}_{{ i }}">
+            {% for score in range(1, 11) %}
+              <option value="{{ score }}">{{ score }}</option>
+            {% endfor %}
+          </select>
         {% endif %}
-        <button type="submit" name="siguiente">Siguiente</button>
-      </div>
-    </form>
 
-    <div class="logos">
-      <img src="{{ cliente_logo }}" alt="Logo Cliente">
-      <img src="{{ cdlr_logo }}" alt="Logo CDLR">
+      </div>
+    {% endfor %}
+
+    <div class="botones">
+      {% if pagina > 0 %}
+        <button type="submit" name="anterior">Anterior</button>
+      {% endif %}
+      <button type="submit" name="siguiente">Siguiente</button>
     </div>
+  </form>
+
+  <div class="logos">
+    <img src="{{ cliente_logo }}" alt="Logo Cliente">
+    <img src="{{ cdlr_logo }}" alt="Logo CDLR">
   </div>
+</div>
 </body>
 </html>
