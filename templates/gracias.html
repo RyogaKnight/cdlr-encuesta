@@ -74,20 +74,25 @@
   </style>
 </head>
 <body>
-  <div class="contenedor">
-    <h2>¡Gracias por completar la encuesta!</h2>
-    <p>Tu opinión es muy valiosa para mejorar el clima laboral.</p>
+<div class="contenedor">
+  <h2>¡Gracias por completar la encuesta!</h2>
+  <p>Tu opinión es muy valiosa para mejorar el clima laboral.</p>
 
-    {% if mensaje %}
-      <div class="mensaje-final" style="color: {% if 'error' in mensaje or 'error' in mensaje.lower() %}red{% else %}green{% endif %};">
-        {{ mensaje }}
-      </div>
-    {% endif %}
+  {% if errores %}
+    <p style="color: red; font-weight: bold;">
+      ⚠️ Hubo un error al guardar tus respuestas. Por favor contacta al proveedor.
+    </p>
+  {% else %}
+    <p style="color: green; font-weight: bold;">
+      ✅ Tus respuestas fueron enviadas exitosamente.
+    </p>
+  {% endif %}
 
-    <div class="logos">
-      <img src="{{ cliente_logo }}" alt="Logo Cliente">
-      <img src="{{ cdlr_logo }}" alt="Logo CDLR">
-    </div>
+  <div class="logos">
+    <img src="{{ cliente_logo }}" alt="Logo Cliente">
+    <img src="{{ cdlr_logo }}" alt="Logo CDLR">
   </div>
+</div>
+
 </body>
 </html>
