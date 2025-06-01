@@ -61,20 +61,15 @@ def cargar_preguntas_para_cliente(cliente, password):
                 "tipo": tipo
             })
 
-preguntas_por_area_ordenado = {}
+    # Ordenar "General" al final
+    preguntas_por_area_ordenado = {}
+    for area in preguntas_por_area:
+        if area != "General":
+            preguntas_por_area_ordenado[area] = preguntas_por_area[area]
+    if "General" in preguntas_por_area:
+        preguntas_por_area_ordenado["General"] = preguntas_por_area["General"]
 
-# Todas las áreas excepto "General", en el orden original
-for area in preguntas_por_area:
-    if area != "General":
-        preguntas_por_area_ordenado[area] = preguntas_por_area[area]
-
-# Si existe área "General", la ponemos al final
-if "General" in preguntas_por_area:
-    preguntas_por_area_ordenado["General"] = preguntas_por_area["General"]
-
-return preguntas_por_area_ordenado
-
-
+    return preguntas_por_area_ordenado
 
 ESCALA = ["Nunca", "En ocasiones", "Con frecuencia", "Casi siempre", "Siempre"]
 
@@ -88,10 +83,10 @@ def guardar_respuesta_en_supabase(encuesta_id, cliente, area, pregunta, respuest
             "respuesta": respuesta
         }
         result = supabase.table("respuestas").insert(data).execute()
-        logging.info("✅ Respuesta guardada: %s", result)
+        logging.info("\u2705 Respuesta guardada: %s", result)
         return True
     except Exception as e:
-        logging.error("❌ Error al guardar en Supabase: %s", e)
+        logging.error("\u274c Error al guardar en Supabase: %s", e)
         return False
 
 @app.route('/', methods=['GET', 'POST'])
@@ -110,7 +105,7 @@ def login():
             session['preguntas'] = preguntas
             return redirect(url_for('formulario'))
         else:
-            error = "Cliente, contraseña o configuración incorrecta."
+            error = "Cliente, contrase\u00f1a o configuraci\u00f3n incorrecta."
     return render_template("login.html", error=error)
 
 @app.route('/encuesta', methods=['GET', 'POST'])
