@@ -1,171 +1,145 @@
-# ============================ IMPORTACIONES Y CONFIGURACIÓN INICIAL ============================
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Encuesta</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: {{ color_fondo }};
+      padding: 40px;
+    }
 
-from flask import Flask, render_template, request, redirect, url_for, session
-from supabase import create_client, Client
-import os
-import gspread
-import json
-from oauth2client.service_account import ServiceAccountCredentials
-import logging
+    .contenedor {
+      background-color: white;
+      padding: 40px;
+      border-radius: 10px;
+      max-width: 800px;
+      margin: auto;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    }
 
-# Inicializa la aplicación Flask
-app = Flask(__name__)
-app.secret_key = 'clave-super-secreta'
+    h2 {
+      color: #333;
+    }
 
-# ============================ LOGGING ============================
+    .pregunta {
+      margin-bottom: 20px;
+    }
 
-logging.basicConfig(level=logging.INFO)
+    .escala, .score {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+    }
 
-# ============================ CONFIGURACIÓN DE GOOGLE SHEETS ============================
+    .score input[type="number"] {
+      width: 60px;
+      padding: 5px;
+    }
 
-scope = [
-    "https://spreadsheets.google.com/feeds",
-    "https://www.googleapis.com/auth/spreadsheets",
-    "https://www.googleapis.com/auth/drive.file",
-    "https://www.googleapis.com/auth/drive"
-]
+    textarea {
+      width: 100%;
+      height: 100px;
+      padding: 10px;
+      margin-top: 10px;
+    }
 
-creds_dict = json.loads(os.environ["GOOGLE_CREDS"])
-creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
-client_gsheets = gspread.authorize(creds)
+    .botones {
+      margin-top: 30px;
+      display: flex;
+      justify-content: space-between;
+    }
 
-# ============================ CONEXIÓN A SUPABASE ============================
+    button {
+      padding: 10px 20px;
+      background-color: #0066cc;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
 
-SUPABASE_URL = os.environ["SUPABASE_PROJECT_URL"]
-SUPABASE_KEY = os.environ["SUPABASE_SERVICE_KEY"]
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+    .logos {
+      display: flex;
+      justify-content: center;
+      gap: 60px;
+      margin-top: 40px;
+    }
 
-# ============================ FUNCIONES AUXILIARES ============================
+    .logos img {
+      height: 80px;
+    }
 
-def cargar_clientes():
-    sheet = client_gsheets.open_by_key("1v6yY39CcjQR1KnZHDRdr3VGLG7-CVbBmigTh399RDEs")
-    hoja = sheet.worksheet("Clientes")
-    registros = hoja.get_all_records()
-    return {fila['Cliente']: fila for fila in registros}
+    .error {
+      color: red;
+      font-weight: bold;
+    }
 
-def cargar_preguntas_para_cliente(cliente, password):
-    sheet = client_gsheets.open_by_key("1v6yY39CcjQR1KnZHDRdr3VGLG7-CVbBmigTh399RDEs")
-    preguntas = sheet.worksheet("Preguntas").get_all_records()
-    encuestas = sheet.worksheet("Encuestas").get_all_records()
-    clientes = sheet.worksheet("Clientes").get_all_records()
+    @media (max-width: 600px) {
+      .score input[type="number"] {
+        width: 40px;
+      }
 
-    encuesta = next((e for e in encuestas if e["Activo"].strip().lower() == "yes" and e["Cliente"].strip() == cliente), None)
-    if not encuesta:
-        return None
+      button {
+        width: 100%;
+        margin-bottom: 10px;
+      }
 
-    cliente_data = next((c for c in clientes if c["Cliente"].strip() == cliente and c["Password"].strip() == password), None)
-    if not cliente_data:
-        return None
+      .logos {
+        flex-direction: column;
+        gap: 20px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="contenedor">
+    <h2>Sección: {{ area }}</h2>
 
-    ids = [pid.strip() for pid in encuesta["Preguntas"].split(',')]
-    preguntas_por_area = {}
-    for pid in ids:
-        fila = next((p for p in preguntas if str(p["ID"]).strip() == pid), None)
-        if fila:
-            area = fila["Area"].strip()
-            preguntas_por_area.setdefault(area, []).append(fila["Pregunta"].strip())
+    {% if error %}
+      <p class="error">{{ error }}</p>
+    {% endif %}
 
-    return preguntas_por_area
+    <form method="post">
+      {% for i, pregunta in enumerate(preguntas) %}
+        <div class="pregunta">
+          <p><strong>{{ i + 1 }}. {{ pregunta.texto }}</strong></p>
 
-ESCALA = ["Nunca", "En ocasiones", "Con frecuencia", "Casi siempre", "Siempre"]
+          {% if pregunta.tipo == 'Frecuencia' %}
+            <div class="escala">
+              {% for opcion in escala %}
+                <label>
+                  <input type="radio" name="{{ area }}_{{ i }}" value="{{ opcion }}">
+                  {{ opcion }}
+                </label>
+              {% endfor %}
+            </div>
 
-# ============================ FUNCIONES DE GUARDADO EN SUPABASE ============================
+          {% elif pregunta.tipo == 'Score' %}
+            <div class="score">
+              <input type="number" name="{{ area }}_{{ i }}" min="1" max="10" placeholder="1 a 10">
+            </div>
 
-def guardar_respuesta_en_supabase(encuesta_id, cliente, area, pregunta, respuesta):
-    try:
-        data = {
-            "encuesta": encuesta_id,
-            "cliente": cliente,
-            "area": area,
-            "pregunta": pregunta,
-            "respuesta": respuesta
-        }
-        result = supabase.table("respuestas").insert(data).execute()
-        logging.info("✅ Respuesta guardada: %s", result)
-        return True
-    except Exception as e:
-        logging.error("❌ Error al guardar en Supabase: %s", e)
-        return False
+          {% elif pregunta.tipo == 'Abierta' %}
+            <textarea name="{{ area }}_{{ i }}" placeholder="Escribe tu respuesta..."></textarea>
+          {% endif %}
+        </div>
+      {% endfor %}
 
-# ============================ RUTAS DE LA APLICACIÓN ============================
+      <div class="botones">
+        {% if pagina > 0 %}
+          <button type="submit" name="anterior">Anterior</button>
+        {% endif %}
+        <button type="submit" name="siguiente">Siguiente</button>
+      </div>
+    </form>
 
-@app.route('/', methods=['GET', 'POST'])
-def login():
-    error = ""
-    if request.method == 'POST':
-        cliente = request.form['cliente']
-        password = request.form['password']
-
-        preguntas = cargar_preguntas_para_cliente(cliente, password)
-        if preguntas:
-            session['autenticado'] = True
-            session['cliente'] = cliente
-            session['pagina'] = 0
-            session['respuestas'] = {}
-            session['preguntas'] = preguntas
-            return redirect(url_for('formulario'))
-        else:
-            error = "Cliente, contraseña o configuración incorrecta."
-
-    return render_template("login.html", error=error)
-
-@app.route('/encuesta', methods=['GET', 'POST'])
-def formulario():
-    if not session.get('autenticado'):
-        return redirect(url_for('login'))
-
-    cliente = session['cliente']
-    preguntas_dict = session['preguntas']
-    secciones = list(preguntas_dict.keys())
-    pagina = session.get('pagina', 0)
-
-    if pagina >= len(secciones):
-        return redirect(url_for('gracias'))
-
-    area = secciones[pagina]
-    preguntas = preguntas_dict[area]
-    cliente_info = CLIENTES.get(cliente, {"Logo": "", "Colorhex": "#FFFFFF"})
-
-    if request.method == 'POST':
-        respuestas_form = {}
-        for i, pregunta in enumerate(preguntas):
-            respuesta = request.form.get(f'{area}_{i}')
-            if not respuesta:
-                return render_template("encuesta.html", preguntas=preguntas, area=area, escala=ESCALA,
-                    pagina=pagina, total=len(secciones), error="Responde todas las preguntas.",
-                    cliente_logo=cliente_info["Logo"], color_fondo=cliente_info["Colorhex"],
-                    cdlr_logo="https://iskali.com.mx/wp-content/uploads/2025/05/CDLR.png")
-            respuestas_form[f'{area}_{i}'] = (area, pregunta, respuesta)
-
-        session['respuestas'].update(respuestas_form)
-        session['pagina'] += 1 if 'siguiente' in request.form else -1
-        return redirect(url_for('formulario'))
-
-    return render_template("encuesta.html", preguntas=preguntas, area=area, escala=ESCALA,
-        pagina=pagina, total=len(secciones), error="", cliente_logo=cliente_info["Logo"],
-        color_fondo=cliente_info["Colorhex"], cdlr_logo="https://iskali.com.mx/wp-content/uploads/2025/05/CDLR.png")
-
-@app.route('/gracias')
-def gracias():
-    cliente = session.get('cliente', '')
-    cliente_info = CLIENTES.get(cliente, {"Logo": "", "Colorhex": "#FFFFFF"})
-    respuestas = session.get('respuestas', {})
-
-    errores = False
-    for _, (area, pregunta, respuesta) in respuestas.items():
-        exito = guardar_respuesta_en_supabase(encuesta_id=1, cliente=cliente, area=area, pregunta=pregunta, respuesta=respuesta)
-        if not exito:
-            errores = True
-
-    session.clear()
-
-    return render_template("gracias.html", cliente_logo=cliente_info["Logo"],
-        color_fondo=cliente_info["Colorhex"], cdlr_logo="https://iskali.com.mx/wp-content/uploads/2025/05/CDLR.png",
-        errores=errores)
-
-# ============================ INICIALIZADOR ============================
-
-if __name__ == '__main__':
-    CLIENTES = cargar_clientes()
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port, debug=True)
+    <div class="logos">
+      <img src="{{ cliente_logo }}" alt="Logo Cliente">
+      <img src="{{ cdlr_logo }}" alt="Logo CDLR">
+    </div>
+  </div>
+</body>
+</html>
