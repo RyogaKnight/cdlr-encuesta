@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8">
@@ -16,6 +16,9 @@
       padding: 20px;
       text-align: center;
       border-bottom: 1px solid #ccc;
+      position: sticky;
+      top: 0;
+      z-index: 1000;
     }
 
     .cabecera img {
@@ -72,22 +75,37 @@
   <script>
     function validarFormulario(event) {
       const form = event.target;
-      const seccion = form.querySelectorAll('fieldset');
-      for (let fieldset of seccion) {
-        const inputs = fieldset.querySelectorAll('input, textarea');
-        let respondido = false;
-        for (let input of inputs) {
-          if ((input.type === 'radio' && input.checked) || (input.type === 'number' && input.value) || (input.tagName === 'TEXTAREA' && input.value.trim())) {
-            respondido = true;
-            break;
+      const preguntas = {{ preguntas|tojson }};
+      let faltantes = [];
+      for (let i = 0; i < preguntas.length; i++) {
+        const nombreCampo = '{{ area }}_' + i;
+        const tipo = preguntas[i].tipo;
+        let valor = form[nombreCampo];
+        if (!valor) continue;
+
+        if (tipo === 'Frecuencia') {
+          let opciones = form.querySelectorAll(`input[name='${nombreCampo}']`);
+          let algunaMarcada = Array.from(opciones).some(r => r.checked);
+          if (!algunaMarcada) {
+            faltantes.push(i);
+          }
+        } else if (tipo === 'Score') {
+          if (!valor.value || valor.value < 1 || valor.value > 10) {
+            faltantes.push(i);
+          }
+        } else if (tipo === 'Abierta') {
+          if (!valor.value.trim()) {
+            faltantes.push(i);
           }
         }
-        if (!respondido) {
-          alert("Por favor responde todas las preguntas antes de continuar.");
-          event.preventDefault();
-          return false;
-        }
       }
+
+      if (faltantes.length > 0) {
+        alert("Por favor responde todas las preguntas antes de continuar.");
+        event.preventDefault();
+        return false;
+      }
+      return true;
     }
   </script>
 </head>
@@ -111,7 +129,7 @@
         {% if preguntas[i].tipo == 'Frecuencia' %}
           {% for opcion in escala %}
             <div class="opciones">
-              <input type="radio" name="{{ area }}_{{ i }}" value="{{ opcion }}" 
+              <input type="radio" name="{{ area }}_{{ i }}" value="{{ opcion }}"
                 {% if session['respuestas'] and session['respuestas'].get(area ~ '_' ~ i) and session['respuestas'].get(area ~ '_' ~ i)[2] == opcion %}checked{% endif %}>
               {{ opcion }}
             </div>
