@@ -7,17 +7,29 @@
     body {
       font-family: Arial, sans-serif;
       background-color: {{ color_fondo }};
+      padding: 0;
+      margin: 0;
+    }
+
+    .cabecera {
+      background-color: white;
+      padding: 20px;
       text-align: center;
-      padding: 40px;
+      border-bottom: 1px solid #ccc;
+    }
+
+    .cabecera img {
+      height: 60px;
+      margin: 0 30px;
     }
 
     .contenedor {
       background-color: white;
       padding: 40px;
-      border-radius: 10px;
+      border-radius: 0;
       max-width: 700px;
-      margin: auto;
-      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+      margin: 0 auto;
+      box-shadow: none;
     }
 
     h1, h2 {
@@ -47,32 +59,44 @@
       color: red;
       font-weight: bold;
       margin-bottom: 20px;
-    }
-
-    .logos {
-      display: flex;
-      justify-content: center;
-      gap: 60px;
-      margin-top: 30px;
-      align-items: center;
-    }
-
-    .logos img {
-      height: 80px;
+      text-align: center;
     }
 
     @media (max-width: 600px) {
-      .logos {
-        flex-direction: column;
-        gap: 20px;
-      }
-      .logos img {
-        height: 70px;
+      .cabecera img {
+        height: 50px;
+        margin: 10px;
       }
     }
   </style>
+  <script>
+    function validarFormulario(event) {
+      const form = event.target;
+      const seccion = form.querySelectorAll('fieldset');
+      for (let fieldset of seccion) {
+        const inputs = fieldset.querySelectorAll('input, textarea');
+        let respondido = false;
+        for (let input of inputs) {
+          if ((input.type === 'radio' && input.checked) || (input.type === 'number' && input.value) || (input.tagName === 'TEXTAREA' && input.value.trim())) {
+            respondido = true;
+            break;
+          }
+        }
+        if (!respondido) {
+          alert("Por favor responde todas las preguntas antes de continuar.");
+          event.preventDefault();
+          return false;
+        }
+      }
+    }
+  </script>
 </head>
 <body>
+<div class="cabecera">
+  <img src="{{ cliente_logo }}" alt="Logo Cliente">
+  <img src="{{ cdlr_logo }}" alt="Logo CDLR">
+</div>
+
 <div class="contenedor">
   <h1>Encuesta Laboral</h1>
   <h2>{{ area }}</h2>
@@ -80,7 +104,7 @@
 
   {% if error %}<div class="error">{{ error }}</div>{% endif %}
 
-  <form method="POST">
+  <form method="POST" onsubmit="return validarFormulario(event)">
     {% for i in range(preguntas|length) %}
       <fieldset>
         <legend>{{ preguntas[i].texto }}</legend>
@@ -111,11 +135,6 @@
       <button type="submit" name="siguiente">Siguiente</button>
     </div>
   </form>
-
-  <div class="logos">
-    <img src="{{ cliente_logo }}" alt="Logo Cliente">
-    <img src="{{ cdlr_logo }}" alt="Logo CDLR">
-  </div>
 </div>
 </body>
 </html>

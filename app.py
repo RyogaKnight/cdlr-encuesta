@@ -61,7 +61,20 @@ def cargar_preguntas_para_cliente(cliente, password):
                 "tipo": tipo
             })
 
-    return preguntas_por_area
+preguntas_por_area_ordenado = {}
+
+# Todas las áreas excepto "General", en el orden original
+for area in preguntas_por_area:
+    if area != "General":
+        preguntas_por_area_ordenado[area] = preguntas_por_area[area]
+
+# Si existe área "General", la ponemos al final
+if "General" in preguntas_por_area:
+    preguntas_por_area_ordenado["General"] = preguntas_por_area["General"]
+
+return preguntas_por_area_ordenado
+
+
 
 ESCALA = ["Nunca", "En ocasiones", "Con frecuencia", "Casi siempre", "Siempre"]
 
