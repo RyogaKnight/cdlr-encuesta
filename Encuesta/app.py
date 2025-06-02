@@ -133,11 +133,13 @@ def formulario():
                 incompleta = True
             respuestas_form[clave] = (area, pregunta["texto"], respuesta)
 
-        session['respuestas'].update(respuestas_form)
+        # actualizar sólo si no está repetida la respuesta
+        for k, v in respuestas_form.items():
+            session['respuestas'][k] = v
 
         if incompleta:
             return render_template("encuesta.html", preguntas=preguntas, area=area, escala=ESCALA,
-                pagina=pagina, total=len(secciones), error="", respuestas_guardadas=request.form,
+                pagina=pagina, total=len(secciones), error="", respuestas_guardadas={k: v[2] for k, v in session['respuestas'].items() if k.startswith(area)},
                 cliente_logo=cliente_info["Logo"], color_fondo=cliente_info["Colorhex"],
                 cdlr_logo="https://iskali.com.mx/wp-content/uploads/2025/05/CDLR.png")
 
@@ -147,8 +149,9 @@ def formulario():
             session['pagina'] -= 1
         return redirect(url_for('formulario'))
 
+    respuestas_guardadas = {k: v[2] for k, v in session.get('respuestas', {}).items() if k.startswith(area)}
     return render_template("encuesta.html", preguntas=preguntas, area=area, escala=ESCALA,
-        pagina=pagina, total=len(secciones), error="", respuestas_guardadas=session.get('respuestas', {}),
+        pagina=pagina, total=len(secciones), error="", respuestas_guardadas=respuestas_guardadas,
         cliente_logo=cliente_info["Logo"], color_fondo=cliente_info["Colorhex"],
         cdlr_logo="https://iskali.com.mx/wp-content/uploads/2025/05/CDLR.png")
 
