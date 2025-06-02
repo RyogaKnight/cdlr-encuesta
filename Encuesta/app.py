@@ -1,3 +1,4 @@
+# ---------------------------- app.py ----------------------------
 from flask import Flask, render_template, request, redirect, url_for, session
 from supabase import create_client, Client
 import os
@@ -61,15 +62,11 @@ def cargar_preguntas_para_cliente(cliente, password):
                 "tipo": tipo
             })
 
-    # Ordenar "General" al final
-    preguntas_por_area_ordenado = {}
-    for area in preguntas_por_area:
-        if area != "General":
-            preguntas_por_area_ordenado[area] = preguntas_por_area[area]
+    preguntas_ordenadas = {k: preguntas_por_area[k] for k in preguntas_por_area if k != "General"}
     if "General" in preguntas_por_area:
-        preguntas_por_area_ordenado["General"] = preguntas_por_area["General"]
+        preguntas_ordenadas["General"] = preguntas_por_area["General"]
 
-    return preguntas_por_area_ordenado
+    return preguntas_ordenadas
 
 ESCALA = ["Nunca", "En ocasiones", "Con frecuencia", "Casi siempre", "Siempre"]
 
@@ -127,23 +124,33 @@ def formulario():
 
     if request.method == 'POST':
         respuestas_form = {}
+        incompleta = False
+
         for i, pregunta in enumerate(preguntas):
             clave = f'{area}_{i}'
-            respuesta = request.form.get(clave)
+            respuesta = request.form.get(clave, '').strip()
             if not respuesta:
-                return render_template("encuesta.html", preguntas=preguntas, area=area, escala=ESCALA,
-                    pagina=pagina, total=len(secciones), error="Responde todas las preguntas.",
-                    cliente_logo=cliente_info["Logo"], color_fondo=cliente_info["Colorhex"],
-                    cdlr_logo="https://iskali.com.mx/wp-content/uploads/2025/05/CDLR.png")
+                incompleta = True
             respuestas_form[clave] = (area, pregunta["texto"], respuesta)
 
         session['respuestas'].update(respuestas_form)
-        session['pagina'] += 1 if 'siguiente' in request.form else -1
+
+        if incompleta:
+            return render_template("encuesta.html", preguntas=preguntas, area=area, escala=ESCALA,
+                pagina=pagina, total=len(secciones), error="", respuestas_guardadas=request.form,
+                cliente_logo=cliente_info["Logo"], color_fondo=cliente_info["Colorhex"],
+                cdlr_logo="https://iskali.com.mx/wp-content/uploads/2025/05/CDLR.png")
+
+        if 'siguiente' in request.form:
+            session['pagina'] += 1
+        elif 'anterior' in request.form:
+            session['pagina'] -= 1
         return redirect(url_for('formulario'))
 
     return render_template("encuesta.html", preguntas=preguntas, area=area, escala=ESCALA,
-        pagina=pagina, total=len(secciones), error="", cliente_logo=cliente_info["Logo"],
-        color_fondo=cliente_info["Colorhex"], cdlr_logo="https://iskali.com.mx/wp-content/uploads/2025/05/CDLR.png")
+        pagina=pagina, total=len(secciones), error="", respuestas_guardadas=session.get('respuestas', {}),
+        cliente_logo=cliente_info["Logo"], color_fondo=cliente_info["Colorhex"],
+        cdlr_logo="https://iskali.com.mx/wp-content/uploads/2025/05/CDLR.png")
 
 @app.route('/gracias')
 def gracias():

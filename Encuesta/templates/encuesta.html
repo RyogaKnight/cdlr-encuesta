@@ -30,7 +30,7 @@
 
     .logo-cdlr {
       position: absolute;
-      bottom: 20px;
+      top: 20px;
       right: 20px;
       height: 60px;
     }
@@ -49,6 +49,7 @@
 
     .pregunta {
       margin: 20px 0;
+      position: relative;
     }
 
     .opciones {
@@ -77,9 +78,7 @@
     }
 
     .error {
-      color: red;
-      font-weight: bold;
-      margin-top: 20px;
+      display: none;
     }
 
     @media (max-width: 600px) {
@@ -105,32 +104,27 @@
     <p>Sección {{ pagina + 1 }} de {{ total }}</p>
 
     <form method="POST">
-
-{% for pregunta in preguntas %}
-  {% set i = loop.index0 %}
-  <div class="pregunta">
-    <strong>{{ pregunta.texto }}</strong>
-    <div class="opciones">
-      {% if pregunta.tipo == 'Frecuencia' %}
-        {% for opcion in escala %}
-          <label><input type="radio" name="{{ area }}_{{ i }}" value="{{ opcion }}"> {{ opcion }}</label><br>
-        {% endfor %}
-      {% elif pregunta.tipo == 'Score' %}
-        <div class="score-grid">
-          {% for num in range(1, 11) %}
-            <label><input type="radio" name="{{ area }}_{{ i }}" value="{{ num }}"> {{ num }}</label>
-          {% endfor %}
+      {% for pregunta in preguntas %}
+        {% set i = loop.index0 %}
+        <div class="pregunta" id="pregunta-{{ i }}">
+          <strong>{{ pregunta.texto }}</strong>
+          <div class="opciones">
+            {% if pregunta.tipo == 'Frecuencia' %}
+              {% for opcion in escala %}
+                <label><input type="radio" name="{{ area }}_{{ i }}" value="{{ opcion }}" {% if respuestas_guardadas.get(area ~ '_' ~ i) == opcion %}checked{% endif %}> {{ opcion }}</label><br>
+              {% endfor %}
+            {% elif pregunta.tipo == 'Score' %}
+              <div class="score-grid">
+                {% for num in range(1, 11) %}
+                  <label><input type="radio" name="{{ area }}_{{ i }}" value="{{ num }}" {% if respuestas_guardadas.get(area ~ '_' ~ i) == num|string %}checked{% endif %}> {{ num }}</label>
+                {% endfor %}
+              </div>
+            {% elif pregunta.tipo == 'Abierta' %}
+              <textarea class="textarea-abierta" name="{{ area }}_{{ i }}">{{ respuestas_guardadas.get(area ~ '_' ~ i, '') }}</textarea>
+            {% endif %}
+          </div>
         </div>
-      {% elif pregunta.tipo == 'Abierta' %}
-        <textarea class="textarea-abierta" name="{{ area }}_{{ i }}" placeholder="Escribe tu respuesta aquí..."></textarea>
-      {% endif %}
-    </div>
-  </div>
-{% endfor %}
-
-      {% if error %}
-        <p class="error">{{ error }}</p>
-      {% endif %}
+      {% endfor %}
 
       <div class="botones">
         {% if pagina > 0 %}
@@ -140,5 +134,39 @@
       </div>
     </form>
   </div>
+
+  <script>
+    document.querySelector("form").addEventListener("submit", function (e) {
+      const preguntas = document.querySelectorAll(".pregunta");
+      for (const pregunta of preguntas) {
+        const inputs = pregunta.querySelectorAll("input, textarea");
+        let filled = false;
+        for (const input of inputs) {
+          if ((input.type === "radio" && input.checked) ||
+              (input.tagName === "TEXTAREA" && input.value.trim() !== "")) {
+            filled = true;
+            break;
+          }
+        }
+        if (!filled) {
+          e.preventDefault();
+          const popup = document.createElement("div");
+          popup.innerText = "Por favor responde esta pregunta";
+          popup.style.position = "absolute";
+          popup.style.background = "#ffcccc";
+          popup.style.border = "1px solid red";
+          popup.style.padding = "10px";
+          popup.style.borderRadius = "5px";
+          popup.style.zIndex = "999";
+          popup.style.top = "0px";
+          popup.style.left = "0px";
+          pregunta.appendChild(popup);
+          pregunta.scrollIntoView({ behavior: "smooth", block: "center" });
+          setTimeout(() => popup.remove(), 3000);
+          return;
+        }
+      }
+    });
+  </script>
 </body>
 </html>
