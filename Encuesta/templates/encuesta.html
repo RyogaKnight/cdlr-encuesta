@@ -18,16 +18,20 @@
       padding: 40px;
       border-radius: 10px;
       box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+      position: relative;
     }
 
-    .logos-superior {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 30px;
+    .logo-cliente {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      height: 60px;
     }
 
-    .logos-superior img {
+    .logo-cdlr {
+      position: absolute;
+      bottom: 20px;
+      right: 20px;
       height: 60px;
     }
 
@@ -35,6 +39,7 @@
       text-align: center;
       font-size: 2em;
       margin: 0;
+      margin-top: 80px;
     }
 
     h2 {
@@ -52,7 +57,7 @@
 
     .score-grid {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: repeat(2, 1fr);
       gap: 10px 40px;
       margin-left: 20px;
     }
@@ -78,9 +83,10 @@
     }
 
     @media (max-width: 600px) {
-      .logos-superior {
-        flex-direction: column;
-        gap: 10px;
+      .logo-cliente, .logo-cdlr {
+        position: static;
+        display: block;
+        margin: 10px auto;
       }
 
       .score-grid {
@@ -91,10 +97,8 @@
 </head>
 <body>
   <div class="contenedor">
-    <div class="logos-superior">
-      <img src="{{ cliente_logo }}" alt="Logo Cliente">
-      <img src="{{ cdlr_logo }}" alt="Logo CDLR">
-    </div>
+    <img class="logo-cliente" src="{{ cliente_logo }}" alt="Logo Cliente">
+    <img class="logo-cdlr" src="{{ cdlr_logo }}" alt="Logo CDLR">
 
     <h1>Encuesta Laboral</h1>
     <h2>{{ area }}</h2>
