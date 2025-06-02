@@ -105,26 +105,28 @@
     <p>Sección {{ pagina + 1 }} de {{ total }}</p>
 
     <form method="POST">
-      {% for i, pregunta in enumerate(preguntas) %}
-        <div class="pregunta">
-          <strong>{{ pregunta.texto }}</strong>
-          <div class="opciones">
-            {% if pregunta.tipo == 'Frecuencia' %}
-              {% for opcion in escala %}
-                <label><input type="radio" name="{{ area }}_{{ i }}" value="{{ opcion }}"> {{ opcion }}</label><br>
-              {% endfor %}
-            {% elif pregunta.tipo == 'Score' %}
-              <div class="score-grid">
-                {% for num in range(1, 11) %}
-                  <label><input type="radio" name="{{ area }}_{{ i }}" value="{{ num }}"> {{ num }}</label>
-                {% endfor %}
-              </div>
-            {% elif pregunta.tipo == 'Abierta' %}
-              <textarea class="textarea-abierta" name="{{ area }}_{{ i }}" placeholder="Escribe tu respuesta aquí..."></textarea>
-            {% endif %}
-          </div>
+
+{% for pregunta in preguntas %}
+  {% set i = loop.index0 %}
+  <div class="pregunta">
+    <strong>{{ pregunta.texto }}</strong>
+    <div class="opciones">
+      {% if pregunta.tipo == 'Frecuencia' %}
+        {% for opcion in escala %}
+          <label><input type="radio" name="{{ area }}_{{ i }}" value="{{ opcion }}"> {{ opcion }}</label><br>
+        {% endfor %}
+      {% elif pregunta.tipo == 'Score' %}
+        <div class="score-grid">
+          {% for num in range(1, 11) %}
+            <label><input type="radio" name="{{ area }}_{{ i }}" value="{{ num }}"> {{ num }}</label>
+          {% endfor %}
         </div>
-      {% endfor %}
+      {% elif pregunta.tipo == 'Abierta' %}
+        <textarea class="textarea-abierta" name="{{ area }}_{{ i }}" placeholder="Escribe tu respuesta aquí..."></textarea>
+      {% endif %}
+    </div>
+  </div>
+{% endfor %}
 
       {% if error %}
         <p class="error">{{ error }}</p>
