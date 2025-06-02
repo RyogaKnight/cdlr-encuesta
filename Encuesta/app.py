@@ -62,9 +62,15 @@ def cargar_preguntas_para_cliente(cliente, password):
                 "tipo": tipo
             })
 
-    preguntas_ordenadas = {k: preguntas_por_area[k] for k in preguntas_por_area if k != "General"}
-    if "General" in preguntas_por_area:
-        preguntas_ordenadas["General"] = preguntas_por_area["General"]
+# Crear lista de áreas, poniendo 'General' al final si existe
+areas = list(preguntas_por_area.keys())
+if "General" in areas:
+    areas.remove("General")
+    areas.append("General")
+
+# Crear diccionario ordenado manualmente
+preguntas_ordenadas = {area: preguntas_por_area[area] for area in areas}
+
 
     return preguntas_ordenadas
 
