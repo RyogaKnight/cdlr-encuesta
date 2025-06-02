@@ -103,7 +103,7 @@ def login():
             session['pagina'] = 0
             session['respuestas'] = {}
             session['preguntas'] = preguntas
-	    session['orden_areas'] = list(preguntas.keys())
+            session['orden_areas'] = list(preguntas.keys())
             return redirect(url_for('formulario'))
         else:
             error = "Cliente, contrase\u00f1a o configuraci\u00f3n incorrecta."
