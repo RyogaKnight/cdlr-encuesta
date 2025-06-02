@@ -62,16 +62,13 @@ def cargar_preguntas_para_cliente(cliente, password):
                 "tipo": tipo
             })
 
-# Crear lista de áreas, poniendo 'General' al final si existe
-areas = list(preguntas_por_area.keys())
-if "General" in areas:
-    areas.remove("General")
-    areas.append("General")
+    # Reordenar áreas poniendo "General" al final
+    areas = list(preguntas_por_area.keys())
+    if "General" in areas:
+        areas.remove("General")
+        areas.append("General")
 
-# Crear diccionario ordenado manualmente
-preguntas_ordenadas = {area: preguntas_por_area[area] for area in areas}
-
-
+    preguntas_ordenadas = {area: preguntas_por_area[area] for area in areas}
     return preguntas_ordenadas
 
 ESCALA = ["Nunca", "En ocasiones", "Con frecuencia", "Casi siempre", "Siempre"]
@@ -139,7 +136,6 @@ def formulario():
                 incompleta = True
             respuestas_form[clave] = (area, pregunta["texto"], respuesta)
 
-        # actualizar sólo si no está repetida la respuesta
         for k, v in respuestas_form.items():
             session['respuestas'][k] = v
 
